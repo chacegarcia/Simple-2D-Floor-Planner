@@ -5,18 +5,25 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>2D Floor Planner (HTML + JS)</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon"/>
+
   <style>
     :root{
-      --bg:#0b1220;--panel:#0f172a;--ink:#e7eefb;--muted:#9fb1d1;--accent:#22d3ee;--accent2:#60a5fa;--ring:rgba(34,211,238,.35);--border:#1e293b;
+      --bg:#0b1220;
+      --panel:#0f172a;
+      --ink:#e7eefb;
+      --muted:#9fb1d1;
+      --accent:#22d3ee;
+      --accent2:#60a5fa;
+      --ring:rgba(34,211,238,.35);
+      --border:#1e293b;
 
-      /* Sidebar widths (open/collapsed) */
-      --sbw: 320px;      /* open width */
-      --sbw-c: 28px;     /* collapsed width (tab only) */
+      /* Sidebar widths */
+      --sbw: 320px;   /* open width */
+      --sbw-c: 28px;  /* collapsed width (tab only) */
     }
 
     *{box-sizing:border-box}
 
-    /* NOTE: body grid-template-columns now uses CSS var so it can animate */
     body{
       margin:0;
       background:linear-gradient(180deg,#0a0f1e,#0b1220);
@@ -28,7 +35,15 @@
       transition: grid-template-columns 220ms ease;
     }
 
-    header{grid-column:1/-1;padding:14px 18px;border-bottom:1px solid var(--border);background:#0b1120;position:sticky;top:0;z-index:5}
+    header{
+      grid-column:1/-1;
+      padding:14px 18px;
+      border-bottom:1px solid var(--border);
+      background:#0b1120;
+      position:sticky;
+      top:0;
+      z-index:5;
+    }
     header h1{margin:0;font-size:16px;letter-spacing:.3px}
 
     .sidebar{
@@ -38,28 +53,38 @@
       display:flex;
       flex-direction:column;
       gap:14px;
-
-      /* Needed for the slide + tab */
       position: relative;
       overflow: hidden;
     }
 
-    /* Wrap all sidebar cards in here so we can slide them */
     .sidebar-inner{
       height: 100%;
       transition: transform 220ms ease, opacity 220ms ease;
       will-change: transform;
     }
 
-    /* The little << >> tab */
+    /* Collapsed behavior */
+    body.sidebar-collapsed{
+      --sbw: var(--sbw-c);
+    }
+    body.sidebar-collapsed .sidebar{
+      padding: 0;
+    }
+    body.sidebar-collapsed .sidebar-inner{
+      transform: translateX(calc(-1 * (320px - var(--sbw-c))));
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    /* Floating tab ALWAYS visible (works on iPhone) */
     .sidebar-tab{
-      position: absolute;
+      position: fixed;
       top: 50%;
-      right: 6px;
+      left: calc(var(--sbw) - 12px); /* hugs sidebar edge */
       transform: translateY(-50%);
-      width: 22px;
-      height: 60px;
-      border-radius: 10px;
+      width: 28px;
+      height: 72px;
+      border-radius: 12px;
       border: 1px solid #1b2740;
       background: #0a1222;
       color: var(--muted);
@@ -68,24 +93,13 @@
       place-items: center;
       user-select: none;
       padding: 0;
-      z-index: 10;
+      z-index: 9999;
+      transition: left 220ms ease;
+      touch-action: manipulation;
     }
     .sidebar-tab:focus{
       outline:none;
       box-shadow:0 0 0 3px var(--ring);
-    }
-
-    /* Collapsed state changes --sbw and slides content out */
-    body.sidebar-collapsed{
-      --sbw: var(--sbw-c);
-    }
-    body.sidebar-collapsed .sidebar-inner{
-      transform: translateX(calc(-1 * (320px - var(--sbw-c))));
-      opacity: 0;
-      pointer-events: none;
-    }
-    body.sidebar-collapsed .sidebar-tab{
-      right: 3px;
     }
 
     .card{background:#0b1324;border:1px solid #182235;border-radius:14px;padding:12px}
@@ -98,6 +112,7 @@
     .actions button{flex:1}
     .muted{color:var(--muted)}
     .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px dashed #2a3b59;border-radius:999px;font-size:12px;color:var(--muted)}
+    .checkline{display:flex; align-items:center; gap:8px}
 
     .canvas-wrap{
       position:sticky;
@@ -114,10 +129,10 @@
     #stage{
       background:#060a14;
       border-left:1px solid var(--border);
-      touch-action:none; /* IMPORTANT for iPad interactions */
+      touch-action:none; /* IMPORTANT: iPad/iPhone interactions */
     }
 
-    /* Footer stays visible. left is now based on sidebar width var */
+    /* Footer stays visible, aligns with sidebar width */
     .footerbar{
       position:fixed;
       bottom:10px;
@@ -132,25 +147,20 @@
       gap:16px;
       align-items:center;
       transition: left 220ms ease;
+      z-index: 50;
     }
-
-    .swatch{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid #0003}
 
     /* Checkbox tweaks */
     input[type="checkbox"]{width:auto; accent-color: var(--accent); padding:0;}
-    .checkline{display:flex; align-items:center; gap:8px}
   </style>
 </head>
+
 <body>
   <header>
     <h1>🧭 2D Floor Planner — set room size, add rectangles by dimensions, drag & rotate</h1>
   </header>
 
   <aside class="sidebar">
-    <!-- Sidebar collapse tab -->
-    <button id="sidebarTab" class="sidebar-tab" title="Collapse sidebar">&laquo;</button>
-
-    <!-- Everything that used to be in the sidebar goes inside sidebar-inner -->
     <div class="sidebar-inner">
 
       <div class="card">
@@ -188,6 +198,19 @@
       </div>
 
       <div class="card">
+        <h2>Input Mode</h2>
+        <label>Controls</label>
+        <select id="inputMode">
+          <option value="auto">Auto (recommended)</option>
+          <option value="desktop">Desktop (mouse / wheel)</option>
+          <option value="touch">Touch (iPhone/iPad / pinch)</option>
+        </select>
+        <div style="margin-top:8px" class="muted">
+          Touch mode: 1-finger drag objects, 1-finger pan empty space, pinch zoom.
+        </div>
+      </div>
+
+      <div class="card">
         <h2>New Rectangle</h2>
         <div class="row">
           <div>
@@ -220,9 +243,9 @@
           </div>
         </div>
         <button id="addRect">Add Rectangle</button>
-        <div style="margin-top:8px" class="muted">Click to select, drag to move. Use the circle handle to rotate.
-          Keys:<br>
-          <span class="pill">Q/E ±15°</span><span class="pill">G to toggle snap</span>
+        <div style="margin-top:8px" class="muted">
+          Click to select, drag to move. Use the circle handle to rotate.<br>
+          Keys: <span class="pill">Q/E ±15°</span> <span class="pill">G toggle snap</span>
         </div>
       </div>
 
@@ -268,6 +291,7 @@
             <input id="selA" type="number" min="0.2" max="1" step="0.1" />
           </div>
         </div>
+
         <div style="margin-top:8px" class="checkline">
           <input id="selLock" type="checkbox" />
           <label for="selLock" style="margin:0;color:var(--muted);font-size:12px">Lock (background)</label>
@@ -291,8 +315,11 @@
         </div>
       </div>
 
-    </div><!-- /.sidebar-inner -->
+    </div>
   </aside>
+
+  <!-- Floating sidebar tab (always visible even when collapsed on iPhone) -->
+  <button id="sidebarTab" class="sidebar-tab" title="Collapse sidebar">&laquo;</button>
 
   <main class="canvas-wrap">
     <canvas id="stage" width="1200" height="800"></canvas>
@@ -307,6 +334,7 @@
   // ===== Core State =====
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
+
   let ROOM_W = 240; // units
   let ROOM_H = 180; // units
   let SCALE = 3;    // px per unit
@@ -314,7 +342,7 @@
   let SNAP_TO_GRID = true;
   let THEME = 'screen';
 
-  // ===== View / Camera (zoom + pan) =====
+  // ===== View / Camera =====
   let ZOOM = 1;
   const ZOOM_MIN = 0.25;
   const ZOOM_MAX = 6;
@@ -322,10 +350,11 @@
   let PAN_Y = 0; // px
   let SPACE_DOWN = false;
 
-  const rects = []; // {id,x,y,w,h,rot,color,alpha,label,locked}
+  // Rectangles: {id,x,y,w,h,rot,color,alpha,label,locked}
+  const rects = [];
   let selectedId = null;
 
-  // UI elements
+  // UI
   const ui = {
     roomW: roomW, roomH: roomH, scale: scale, grid: grid, applyRoom: applyRoom, clearAll: clearAll,
     rectW: rectW, rectH: rectH, rectRot: rectRot, rectLabel: rectLabel, rectColor: rectColor, rectAlpha: rectAlpha, addRect: addRect,
@@ -333,7 +362,8 @@
     exportPNG: exportPNG, exportJSON: exportJSON, importFile: importFile, importJSON: importJSON,
     fitView: document.getElementById('fitView'), resetView: document.getElementById('resetView'),
     snapState: document.getElementById('snapState'), cursor: document.getElementById('cursor'), selInfo: document.getElementById('selInfo'),
-    zoomRead: document.getElementById('zoomRead')
+    zoomRead: document.getElementById('zoomRead'),
+    inputMode: document.getElementById('inputMode')
   };
 
   function uid(){ return Math.random().toString(36).slice(2,8); }
@@ -362,11 +392,48 @@
     SIDEBAR_COLLAPSED = !SIDEBAR_COLLAPSED;
     localStorage.setItem(SB_KEY, SIDEBAR_COLLAPSED ? '1' : '0');
     applySidebarState();
-    // Resize canvas for new available width
-    ui.applyRoom.click();
+    ui.applyRoom.click(); // resize canvas for new width
   });
 
   applySidebarState();
+
+  // ===== Input Mode Toggle (desktop vs touch) =====
+  const INPUT_MODE_KEY = 'floorplanner_input_mode';
+  let INPUT_MODE = localStorage.getItem(INPUT_MODE_KEY) || 'auto'; // auto | desktop | touch
+
+  function detectTouchByCapabilities(){
+    return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  }
+
+  let IS_TOUCH_MODE = false;
+  let HANDLE_RADIUS = 8; // px
+
+  function applyInputMode(mode){
+    INPUT_MODE = mode;
+    localStorage.setItem(INPUT_MODE_KEY, mode);
+
+    const autoTouch = detectTouchByCapabilities();
+    IS_TOUCH_MODE = (mode === 'touch') ? true : (mode === 'desktop') ? false : autoTouch;
+
+    HANDLE_RADIUS = IS_TOUCH_MODE ? 18 : 8;
+    SPACE_DOWN = false;
+
+    redraw();
+  }
+
+  if(ui.inputMode){
+    ui.inputMode.value = INPUT_MODE;
+    ui.inputMode.addEventListener('change', () => applyInputMode(ui.inputMode.value));
+  }
+  applyInputMode(INPUT_MODE);
+
+  // If capability changes (iPad adds mouse), refresh Auto
+  const mq = window.matchMedia && window.matchMedia('(pointer: coarse)');
+  if(mq && mq.addEventListener){
+    mq.addEventListener('change', () => {
+      if(INPUT_MODE === 'auto') applyInputMode('auto');
+    });
+  }
 
   // ===== Helpers =====
   function screenToWorld(px, py){ return [px / (SCALE * ZOOM), py / (SCALE * ZOOM)]; }
@@ -377,6 +444,7 @@
   }
 
   function clampRectToRoom(r){
+    // prevent spill
     r.w = Math.min(Math.max(1, r.w), ROOM_W);
     r.h = Math.min(Math.max(1, r.h), ROOM_H);
     r.x = Math.max(r.w/2, Math.min(ROOM_W - r.w/2, r.x));
@@ -396,6 +464,7 @@
     return `rgba(${r},${g},${b},${a})`;
   }
 
+  // ===== Drawing =====
   function drawGrid(){
     const [wpx, hpx] = [ROOM_W * SCALE * ZOOM, ROOM_H * SCALE * ZOOM];
 
@@ -486,27 +555,33 @@
     const {ox, oy} = getRoomOffset();
     const cx = ox + r.x * SCALE * ZOOM;
     const cy = oy + r.y * SCALE * ZOOM;
+
     let x = px - cx, y = py - cy;
     const cos = Math.cos(-r.rot * Math.PI/180), sin = Math.sin(-r.rot * Math.PI/180);
     const lx = x * cos - y * sin;
     const ly = x * sin + y * cos;
+
     const hw = (r.w * SCALE * ZOOM)/2, hh = (r.h * SCALE * ZOOM)/2;
     return Math.abs(lx) <= hw && Math.abs(ly) <= hh;
   }
 
   function onHandle(px, py, r){
     if(r.locked) return false;
+
     const {ox, oy} = getRoomOffset();
     const cx = ox + r.x * SCALE * ZOOM;
     const cy = oy + r.y * SCALE * ZOOM;
-    const h = r.h * SCALE * ZOOM;
+    const h  = r.h * SCALE * ZOOM;
 
+    // Handle local position (0, -h/2 - 16)
     const cos = Math.cos(r.rot * Math.PI/180), sin = Math.sin(r.rot * Math.PI/180);
     const localY = (-h/2 - 16);
+
     const hx = cx + (0 * cos - localY * sin);
     const hy = cy + (0 * sin + localY * cos);
+
     const d2 = (px - hx)**2 + (py - hy)**2;
-    return d2 <= (8*8);
+    return d2 <= (HANDLE_RADIUS * HANDLE_RADIUS);
   }
 
   function rectAt(px, py){
@@ -517,11 +592,14 @@
     return null;
   }
 
-  // ===== Interaction =====
-  let drag = null; // {type:'move'|'rotate', id, start:{x,y}, orig:{x,y,rot}}
+  // ===== Interaction (Desktop) =====
+  let drag = null;    // {type:'move'|'rotate', id, start:{x,y}, orig:{x,y,rot}}
   let panDrag = null; // {startX,startY,origPanX,origPanY}
 
+  // Desktop: hover + drag + rotate
   canvas.addEventListener('mousemove', (e)=>{
+    if(IS_TOUCH_MODE) return;
+
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
     const [wx, wy] = screenToWorld(px - getRoomOffset().ox, py - getRoomOffset().oy);
@@ -530,6 +608,7 @@
     if(drag){
       const r = rects.find(rr => rr.id === drag.id);
       if(!r) return;
+
       if(drag.type === 'move'){
         const dx = (px - drag.start.x) / (SCALE * ZOOM);
         const dy = (py - drag.start.y) / (SCALE * ZOOM);
@@ -554,6 +633,7 @@
       return;
     }
 
+    // hover cursor
     const hit = selectedId ? rects.find(r=>r.id===selectedId) : null;
     if(hit && onHandle(px,py,hit)){
       canvas.style.cursor = 'crosshair';
@@ -564,10 +644,14 @@
     }
   });
 
+  // Desktop: select/drag/rotate
   canvas.addEventListener('mousedown', (e)=>{
+    if(IS_TOUCH_MODE) return;
+
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
 
+    // let pan handler take over if needed
     if(e.button === 1 || (SPACE_DOWN && e.button === 0)) return;
 
     if(selectedId){
@@ -590,9 +674,11 @@
     }
   });
 
-  // Wheel zoom toward cursor
+  // Desktop: wheel zoom
   canvas.addEventListener('wheel', (e) => {
+    if(IS_TOUCH_MODE) return;
     e.preventDefault();
+
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -604,6 +690,7 @@
     const factor = (e.deltaY < 0) ? 1.12 : 0.89;
     const newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, ZOOM * factor));
     if(newZoom === ZOOM) return;
+
     ZOOM = newZoom;
 
     const wpx = ROOM_W * SCALE * ZOOM;
@@ -615,10 +702,11 @@
     PAN_Y = my - (baseOy + worldY * SCALE * ZOOM);
 
     redraw();
-  }, { passive: false });
+  }, { passive:false });
 
-  // Pan: Middle mouse OR Space + Left drag
+  // Desktop: pan (middle mouse OR Space+drag)
   canvas.addEventListener('mousedown', (e)=>{
+    if(IS_TOUCH_MODE) return;
     if(e.button === 1 || (SPACE_DOWN && e.button === 0)){
       e.preventDefault();
       panDrag = {startX:e.offsetX, startY:e.offsetY, origPanX:PAN_X, origPanY:PAN_Y};
@@ -627,6 +715,7 @@
   });
 
   canvas.addEventListener('mousemove', (e)=>{
+    if(IS_TOUCH_MODE) return;
     if(panDrag){
       PAN_X = panDrag.origPanX + (e.offsetX - panDrag.startX);
       PAN_Y = panDrag.origPanY + (e.offsetY - panDrag.startY);
@@ -644,7 +733,9 @@
 
   canvas.addEventListener('auxclick', (e)=>{ if(e.button === 1) e.preventDefault(); });
 
+  // Desktop: keyboard shortcuts
   window.addEventListener('keydown',(e)=>{
+    if(IS_TOUCH_MODE) return;
     if(isTextEditing()) return;
 
     if(e.code === 'Space'){ SPACE_DOWN = true; e.preventDefault(); return; }
@@ -676,6 +767,7 @@
 
     if(e.key.toLowerCase()==='q'){ r.rot = (r.rot - 15); syncSelectedPanel(); redraw(); }
     if(e.key.toLowerCase()==='e'){ r.rot = (r.rot + 15); syncSelectedPanel(); redraw(); }
+
     if(e.key==='ArrowLeft'){ r.x -= SNAP_TO_GRID? GRID/2 : 1; clampRectToRoom(r); syncSelectedPanel(); redraw(); }
     if(e.key==='ArrowRight'){ r.x += SNAP_TO_GRID? GRID/2 : 1; clampRectToRoom(r); syncSelectedPanel(); redraw(); }
     if(e.key==='ArrowUp'){ r.y -= SNAP_TO_GRID? GRID/2 : 1; clampRectToRoom(r); syncSelectedPanel(); redraw(); }
@@ -683,10 +775,139 @@
   });
 
   window.addEventListener('keyup',(e)=>{
+    if(IS_TOUCH_MODE) return;
     if(isTextEditing()) return;
     if(e.code === 'Space'){ SPACE_DOWN = false; e.preventDefault(); }
   });
 
+  // ===== Touch Controls (Pointer Events) =====
+  const pointers = new Map(); // pointerId -> {x,y}
+  let touchPanStart = null;   // {x,y, panX, panY}
+  let pinchStart = null;      // {dist, zoom, worldX, worldY}
+
+  function getCanvasXY(e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+  function pDist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function pMid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if(!IS_TOUCH_MODE) return;
+    if(e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+
+    canvas.setPointerCapture(e.pointerId);
+    const p = getCanvasXY(e);
+    pointers.set(e.pointerId, p);
+
+    // Two pointers => pinch
+    if(pointers.size === 2){
+      const pts = [...pointers.values()];
+      const m = pMid(pts[0], pts[1]);
+
+      const {ox, oy} = getRoomOffset();
+      const worldX = (m.x - ox) / (SCALE * ZOOM);
+      const worldY = (m.y - oy) / (SCALE * ZOOM);
+
+      pinchStart = { dist: pDist(pts[0], pts[1]), zoom: ZOOM, worldX, worldY };
+      touchPanStart = null;
+      drag = null;
+      return;
+    }
+
+    // Single finger: select + drag (if unlocked), else pan
+    const r = rectAt(p.x, p.y);
+    if(r){
+      select(r.id);
+      if(!r.locked){
+        bringToFront(r.id);
+        drag = {type:'move', id:r.id, start:{x:p.x,y:p.y}, orig:{x:r.x,y:r.y,rot:r.rot}};
+      } else {
+        drag = null;
+      }
+      touchPanStart = null;
+    } else {
+      select(null);
+      drag = null;
+      touchPanStart = { x:p.x, y:p.y, panX:PAN_X, panY:PAN_Y };
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if(!IS_TOUCH_MODE) return;
+    if(!pointers.has(e.pointerId)) return;
+
+    const p = getCanvasXY(e);
+    pointers.set(e.pointerId, p);
+
+    const {ox, oy} = getRoomOffset();
+    const [wx, wy] = screenToWorld(p.x - ox, p.y - oy);
+    ui.cursor.textContent = `${wx.toFixed(1)}, ${wy.toFixed(1)}`;
+
+    // Pinch zoom
+    if(pointers.size === 2 && pinchStart){
+      const pts = [...pointers.values()];
+      const m = pMid(pts[0], pts[1]);
+      const d = pDist(pts[0], pts[1]);
+
+      let newZoom = pinchStart.zoom * (d / pinchStart.dist);
+      newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, newZoom));
+      ZOOM = newZoom;
+
+      const wpx = ROOM_W * SCALE * ZOOM;
+      const hpx = ROOM_H * SCALE * ZOOM;
+      const baseOx = (canvas.width - wpx)/2;
+      const baseOy = (canvas.height - hpx)/2;
+
+      PAN_X = m.x - (baseOx + pinchStart.worldX * SCALE * ZOOM);
+      PAN_Y = m.y - (baseOy + pinchStart.worldY * SCALE * ZOOM);
+
+      redraw();
+      return;
+    }
+
+    // One-finger pan
+    if(touchPanStart && !drag){
+      PAN_X = touchPanStart.panX + (p.x - touchPanStart.x);
+      PAN_Y = touchPanStart.panY + (p.y - touchPanStart.y);
+      redraw();
+      return;
+    }
+
+    // One-finger drag
+    if(drag && drag.type === 'move'){
+      const r = rects.find(rr => rr.id === drag.id);
+      if(!r || r.locked) return;
+
+      const dx = (p.x - drag.start.x) / (SCALE * ZOOM);
+      const dy = (p.y - drag.start.y) / (SCALE * ZOOM);
+
+      let nx = drag.orig.x + dx;
+      let ny = drag.orig.y + dy;
+
+      if(SNAP_TO_GRID){ nx = snap(nx, GRID/2); ny = snap(ny, GRID/2); }
+
+      r.x = nx; r.y = ny;
+      clampRectToRoom(r);
+      syncSelectedPanel();
+      redraw();
+      return;
+    }
+  });
+
+  function endTouchPointer(e){
+    if(!IS_TOUCH_MODE) return;
+    pointers.delete(e.pointerId);
+    if(pointers.size < 2) pinchStart = null;
+    if(pointers.size === 0){
+      drag = null;
+      touchPanStart = null;
+    }
+  }
+  canvas.addEventListener('pointerup', endTouchPointer);
+  canvas.addEventListener('pointercancel', endTouchPointer);
+
+  // ===== Selection / Layering =====
   function bringToFront(id){
     const idx = rects.findIndex(r=>r.id===id);
     if(idx>=0){ const [r]=rects.splice(idx,1); rects.push(r); redraw(); }
@@ -697,29 +918,43 @@
   }
 
   function select(id){
-    selectedId = id; syncSelectedPanel(); redraw();
+    selectedId = id;
+    syncSelectedPanel();
+    redraw();
   }
 
+  function getSel(){ return rects.find(rr=>rr.id===selectedId) || null; }
+
   function syncSelectedPanel(){
-    const r = rects.find(rr=>rr.id===selectedId);
-    if(!r){ ui.selCard.style.display='none'; ui.selInfo.textContent='none'; return; }
+    const r = getSel();
+    if(!r){
+      ui.selCard.style.display='none';
+      ui.selInfo.textContent='none';
+      return;
+    }
     ui.selCard.style.display='block';
-    ui.selX.value = r.x.toFixed(1); ui.selY.value = r.y.toFixed(1);
-    ui.selW.value = r.w.toFixed(1); ui.selH.value = r.h.toFixed(1);
-    ui.selR.value = r.rot.toFixed(0); ui.selL.value = r.label||'';
-    ui.selC.value = r.color; ui.selA.value = r.alpha.toFixed(1);
+    ui.selX.value = r.x.toFixed(1);
+    ui.selY.value = r.y.toFixed(1);
+    ui.selW.value = r.w.toFixed(1);
+    ui.selH.value = r.h.toFixed(1);
+    ui.selR.value = r.rot.toFixed(0);
+    ui.selL.value = r.label||'';
+    ui.selC.value = r.color;
+    ui.selA.value = r.alpha.toFixed(1);
     ui.selLock.checked = !!r.locked;
     ui.selInfo.textContent = `${r.label||'rect'} (${r.w}×${r.h} @ ${r.rot}°)`;
   }
 
+  // Selected panel events
   ui.selX?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.x = +ui.selX.value; clampRectToRoom(r); redraw(); });
   ui.selY?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.y = +ui.selY.value; clampRectToRoom(r); redraw(); });
   ui.selW?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.w = Math.max(1,+ui.selW.value); clampRectToRoom(r); syncSelectedPanel(); redraw(); });
   ui.selH?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.h = Math.max(1,+ui.selH.value); clampRectToRoom(r); syncSelectedPanel(); redraw(); });
   ui.selR?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.rot = +ui.selR.value; redraw(); });
-  ui.selL?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.label = ui.selL.value; redraw(); });
+  ui.selL?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.label = ui.selL.value; redraw(); syncSelectedPanel(); });
   ui.selC?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.color = ui.selC.value; redraw(); });
   ui.selA?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.alpha = Math.min(1, Math.max(0.2, +ui.selA.value)); redraw(); });
+
   ui.selLock?.addEventListener('change', ()=>{
     const r=getSel(); if(!r) return;
     r.locked = !!ui.selLock.checked;
@@ -728,46 +963,65 @@
     syncSelectedPanel();
   });
 
-  function getSel(){ return rects.find(rr=>rr.id===selectedId) || null; }
-
   function deleteSelected(){
     const idx = rects.findIndex(r=>r.id===selectedId);
-    if(idx>=0){ rects.splice(idx,1); select(null); }
+    if(idx>=0){
+      rects.splice(idx,1);
+      select(null);
+    }
   }
   ui.deleteSel?.addEventListener('click', deleteSelected);
+
   ui.dupSel?.addEventListener('click', ()=>{
     const r=getSel(); if(!r) return;
-    const copy={...r,id:uid(),x:r.x+ (r.w/4), y:r.y+(r.h/4)};
-    rects.push(copy); select(copy.id);
+    const copy={...r,id:uid(),x:r.x+(r.w/4),y:r.y+(r.h/4)};
+    rects.push(copy);
+    select(copy.id);
   });
 
+  // ===== View Helpers =====
   function resetView(){
-    ZOOM = 1; PAN_X = 0; PAN_Y = 0; redraw();
+    ZOOM = 1;
+    PAN_X = 0;
+    PAN_Y = 0;
+    redraw();
   }
+
   function fitToScreen(){
     const pad = 40;
     const roomPxW = ROOM_W * SCALE;
     const roomPxH = ROOM_H * SCALE;
+
     const zx = (canvas.width  - pad*2) / roomPxW;
     const zy = (canvas.height - pad*2) / roomPxH;
+
     ZOOM = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(zx, zy)));
-    PAN_X = 0; PAN_Y = 0; redraw();
+    PAN_X = 0;
+    PAN_Y = 0;
+    redraw();
   }
+
   ui.fitView?.addEventListener('click', fitToScreen);
   ui.resetView?.addEventListener('click', resetView);
 
+  // ===== Buttons =====
   ui.applyRoom.addEventListener('click',()=>{
     ROOM_W = Math.max(1, +ui.roomW.value);
     ROOM_H = Math.max(1, +ui.roomH.value);
     SCALE  = Math.max(1, +ui.scale.value);
     GRID   = Math.max(1, +ui.grid.value);
+
     for(const r of rects){ clampRectToRoom(r); }
 
-    const maxW = window.innerWidth - 360, maxH = window.innerHeight - 120;
+    const maxW = window.innerWidth - 360;
+    const maxH = window.innerHeight - 120;
+
     const wpx = Math.min(ROOM_W*SCALE, Math.max(800, maxW));
     const hpx = Math.min(ROOM_H*SCALE, Math.max(600, maxH));
-    canvas.width = Math.round(Math.max(600, wpx));
-    canvas.height= Math.round(Math.max(400, hpx));
+
+    canvas.width  = Math.round(Math.max(600, wpx));
+    canvas.height = Math.round(Math.max(400, hpx));
+
     redraw();
   });
 
@@ -779,14 +1033,18 @@
     const color = ui.rectColor.value;
     const alpha = Math.min(1, Math.max(0.2, +ui.rectAlpha.value));
     const label = ui.rectLabel.value.trim();
+
     const r = {id:uid(), x:w/2+1, y:h/2+1, w, h, rot, color, alpha, label, locked:false};
     if(SNAP_TO_GRID){ r.x = snap(r.x, GRID/2); r.y = snap(r.y, GRID/2); }
     clampRectToRoom(r);
-    rects.push(r); select(r.id);
+
+    rects.push(r);
+    select(r.id);
   });
 
   ui.exportPNG.addEventListener('click',()=>{
     const Proj_Name = document.getElementById('ProjectN').value || 'floorplan';
+
     const off = document.createElement('canvas');
     off.width  = Math.round(ROOM_W * SCALE);
     off.height = Math.round(ROOM_H * SCALE);
@@ -802,27 +1060,37 @@
     const step = GRID * SCALE;
     octx.strokeStyle = '#e6eaf1';
     octx.lineWidth = 1;
-    for(let x=0; x<=off.width; x+=step){ octx.beginPath(); octx.moveTo(x,0); octx.lineTo(x,off.height); octx.stroke(); }
-    for(let y=0; y<=off.height; y+=step){ octx.beginPath(); octx.moveTo(0,y); octx.lineTo(off.width,y); octx.stroke(); }
+    for(let x=0; x<=off.width; x+=step){
+      octx.beginPath(); octx.moveTo(x,0); octx.lineTo(x,off.height); octx.stroke();
+    }
+    for(let y=0; y<=off.height; y+=step){
+      octx.beginPath(); octx.moveTo(0,y); octx.lineTo(off.width,y); octx.stroke();
+    }
 
     for(const r of rects){
-      const cx = r.x * SCALE, cy = r.y * SCALE;
-      const w  = r.w * SCALE, h = r.h * SCALE;
+      const cx = r.x * SCALE;
+      const cy = r.y * SCALE;
+      const w  = r.w * SCALE;
+      const h  = r.h * SCALE;
+
       octx.save();
       octx.translate(cx, cy);
       octx.rotate(r.rot * Math.PI/180);
+
       octx.fillStyle = hexToRgba(r.color, r.alpha);
       octx.strokeStyle = '#2a3b59';
       octx.lineWidth = 1.25;
       octx.beginPath();
       octx.rect(-w/2, -h/2, w, h);
       octx.fill(); octx.stroke();
+
       if(r.label){
         octx.fillStyle = '#0b1220';
         octx.font = '12px system-ui, sans-serif';
         octx.textAlign = 'center'; octx.textBaseline = 'middle';
         octx.fillText(r.label, 0, 0);
       }
+
       octx.restore();
     }
 
@@ -842,22 +1110,34 @@
   ui.importJSON.addEventListener('click',()=>{
     const f = ui.importFile.files?.[0];
     if(!f) return alert('Choose a JSON file first');
+
     const fr = new FileReader();
     fr.onload = ()=>{
       try{
         const d = JSON.parse(fr.result);
-        ROOM_W = d.room.w; ROOM_H = d.room.h; SCALE=d.room.scale; GRID=d.room.grid; SNAP_TO_GRID = !!d.snap;
-        rects.length=0;
-        for(const r of d.rects){ rects.push({locked:false, ...r}); }
-        ui.roomW.value=ROOM_W; ui.roomH.value=ROOM_H; ui.scale.value=SCALE; ui.grid.value=GRID;
-        ui.snapState.textContent = SNAP_TO_GRID?'ON':'OFF';
-        select(null); ui.applyRoom.click();
-      }catch(err){ alert('Invalid JSON'); }
+        ROOM_W = d.room.w; ROOM_H = d.room.h; SCALE = d.room.scale; GRID = d.room.grid; SNAP_TO_GRID = !!d.snap;
+
+        rects.length = 0;
+        for(const r of d.rects){
+          rects.push({ locked:false, ...r }); // default if missing
+        }
+
+        ui.roomW.value = ROOM_W;
+        ui.roomH.value = ROOM_H;
+        ui.scale.value = SCALE;
+        ui.grid.value  = GRID;
+
+        ui.snapState.textContent = SNAP_TO_GRID ? 'ON' : 'OFF';
+        select(null);
+        ui.applyRoom.click();
+      }catch(err){
+        alert('Invalid JSON');
+      }
     };
     fr.readAsText(f);
   });
 
-  // Initial draw
+  // Initial
   ui.applyRoom.click();
   redraw();
   </script>
