@@ -6,12 +6,88 @@
   <title>2D Floor Planner (HTML + JS)</title>
   <link rel="icon" href="favicon.ico" type="image/x-icon"/>
   <style>
-    :root{--bg:#0b1220;--panel:#0f172a;--ink:#e7eefb;--muted:#9fb1d1;--accent:#22d3ee;--accent2:#60a5fa;--ring:rgba(34,211,238,.35);--border:#1e293b}
+    :root{
+      --bg:#0b1220;--panel:#0f172a;--ink:#e7eefb;--muted:#9fb1d1;--accent:#22d3ee;--accent2:#60a5fa;--ring:rgba(34,211,238,.35);--border:#1e293b;
+
+      /* Sidebar widths (open/collapsed) */
+      --sbw: 320px;      /* open width */
+      --sbw-c: 28px;     /* collapsed width (tab only) */
+    }
+
     *{box-sizing:border-box}
-    body{margin:0;background:linear-gradient(180deg,#0a0f1e,#0b1220);color:var(--ink);font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:grid;grid-template-columns:320px 1fr;min-height:100vh}
+
+    /* NOTE: body grid-template-columns now uses CSS var so it can animate */
+    body{
+      margin:0;
+      background:linear-gradient(180deg,#0a0f1e,#0b1220);
+      color:var(--ink);
+      font:14px/1.4 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+      display:grid;
+      grid-template-columns: var(--sbw) 1fr;
+      min-height:100vh;
+      transition: grid-template-columns 220ms ease;
+    }
+
     header{grid-column:1/-1;padding:14px 18px;border-bottom:1px solid var(--border);background:#0b1120;position:sticky;top:0;z-index:5}
     header h1{margin:0;font-size:16px;letter-spacing:.3px}
-    .sidebar{padding:16px;border-right:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column;gap:14px}
+
+    .sidebar{
+      padding:16px;
+      border-right:1px solid var(--border);
+      background:var(--panel);
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+
+      /* Needed for the slide + tab */
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Wrap all sidebar cards in here so we can slide them */
+    .sidebar-inner{
+      height: 100%;
+      transition: transform 220ms ease, opacity 220ms ease;
+      will-change: transform;
+    }
+
+    /* The little << >> tab */
+    .sidebar-tab{
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      transform: translateY(-50%);
+      width: 22px;
+      height: 60px;
+      border-radius: 10px;
+      border: 1px solid #1b2740;
+      background: #0a1222;
+      color: var(--muted);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      user-select: none;
+      padding: 0;
+      z-index: 10;
+    }
+    .sidebar-tab:focus{
+      outline:none;
+      box-shadow:0 0 0 3px var(--ring);
+    }
+
+    /* Collapsed state changes --sbw and slides content out */
+    body.sidebar-collapsed{
+      --sbw: var(--sbw-c);
+    }
+    body.sidebar-collapsed .sidebar-inner{
+      transform: translateX(calc(-1 * (320px - var(--sbw-c))));
+      opacity: 0;
+      pointer-events: none;
+    }
+    body.sidebar-collapsed .sidebar-tab{
+      right: 3px;
+    }
+
     .card{background:#0b1324;border:1px solid #182235;border-radius:14px;padding:12px}
     .card h2{margin:0 0 8px 0;font-size:13px;color:var(--muted);font-weight:600}
     label{display:block;margin:6px 0 4px 0;color:var(--muted);font-size:12px}
@@ -22,11 +98,45 @@
     .actions button{flex:1}
     .muted{color:var(--muted)}
     .pill{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px dashed #2a3b59;border-radius:999px;font-size:12px;color:var(--muted)}
-    .canvas-wrap{position:sticky;top:60px;height:calc(100vh - 60px);display:flex;align-items:center;justify-content:center;background:#0a0f1e;overflow:hidden;touch-action:none}
-    #stage{background:#060a14;border-left:1px solid var(--border);touch-action:none;-webkit-user-select:none;user-select:none}
-    .footerbar{position:fixed;bottom:10px;left:340px;right:14px;background:#0b1324;border:1px solid #182235;border-radius:12px;padding:8px 10px;color:var(--muted);display:flex;gap:16px;align-items:center}
+
+    .canvas-wrap{
+      position:sticky;
+      top:60px;
+      height:calc(100vh - 60px);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#0a0f1e;
+      overflow:hidden;
+      touch-action:none;
+    }
+
+    #stage{
+      background:#060a14;
+      border-left:1px solid var(--border);
+      touch-action:none; /* IMPORTANT for iPad interactions */
+    }
+
+    /* Footer stays visible. left is now based on sidebar width var */
+    .footerbar{
+      position:fixed;
+      bottom:10px;
+      right:14px;
+      left: calc(var(--sbw) + 20px);
+      background:#0b1324;
+      border:1px solid #182235;
+      border-radius:12px;
+      padding:8px 10px;
+      color:var(--muted);
+      display:flex;
+      gap:16px;
+      align-items:center;
+      transition: left 220ms ease;
+    }
+
     .swatch{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid #0003}
 
+    /* Checkbox tweaks */
     input[type="checkbox"]{width:auto; accent-color: var(--accent); padding:0;}
     .checkline{display:flex; align-items:center; gap:8px}
   </style>
@@ -37,131 +147,151 @@
   </header>
 
   <aside class="sidebar">
-    <div class="card">
-      <h2>Room</h2>
-      <input id="ProjectN" type="text" placeholder="Project Name" />
-      <div class="row">
-        <div>
-          <label>Width (units)</label>
-          <input id="roomW" type="number" min="1" step="1" value="240" />
-        </div>
-        <div>
-          <label>Height (units)</label>
-          <input id="roomH" type="number" min="1" step="1" value="180" />
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>Scale (px / unit)</label>
-          <input id="scale" type="number" min="1" step="1" value="3" />
-        </div>
-        <div>
-          <label>Grid size</label>
-          <input id="grid" type="number" min="1" step="1" value="12" />
-        </div>
-      </div>
-      <div class="actions">
-        <button id="applyRoom">Apply</button>
-        <button id="clearAll" title="Remove all items">Clear</button>
-      </div>
-      <div class="actions">
-        <button id="fitView" title="Fit the whole room on screen">Fit View</button>
-        <button id="resetView" title="Reset zoom and pan">Reset View</button>
-      </div>
-      <div style="margin-top:8px" class="muted">Units are arbitrary (inches, cm, etc.).</div>
-    </div>
+    <!-- Sidebar collapse tab -->
+    <button id="sidebarTab" class="sidebar-tab" title="Collapse sidebar">&laquo;</button>
 
-    <div class="card">
-      <h2>Input Mode</h2>
-      <label>Controls</label>
-      <select id="inputMode">
-        <option value="auto">Auto (recommended)</option>
-        <option value="desktop">Desktop (mouse / wheel)</option>
-        <option value="touch">Touch (iPad / pinch)</option>
-      </select>
-      <div style="margin-top:8px" class="muted">
-        Touch mode enables: 1-finger drag objects, 2-finger pan, pinch zoom.
-      </div>
-    </div>
+    <!-- Everything that used to be in the sidebar goes inside sidebar-inner -->
+    <div class="sidebar-inner">
 
-    <div class="card">
-      <h2>New Rectangle</h2>
-      <div class="row">
-        <div>
-          <label>Width</label>
-          <input id="rectW" type="number" min="1" step="1" value="24" />
+      <div class="card">
+        <h2>Room</h2>
+        <input id="ProjectN" type="text" placeholder="Project Name" />
+        <div class="row">
+          <div>
+            <label>Width (units)</label>
+            <input id="roomW" type="number" min="1" step="1" value="240" />
+          </div>
+          <div>
+            <label>Height (units)</label>
+            <input id="roomH" type="number" min="1" step="1" value="180" />
+          </div>
         </div>
-        <div>
-          <label>Height</label>
-          <input id="rectH" type="number" min="1" step="1" value="18" />
+        <div class="row">
+          <div>
+            <label>Scale (px / unit)</label>
+            <input id="scale" type="number" min="1" step="1" value="3" />
+          </div>
+          <div>
+            <label>Grid size</label>
+            <input id="grid" type="number" min="1" step="1" value="12" />
+          </div>
         </div>
+        <div class="actions">
+          <button id="applyRoom">Apply</button>
+          <button id="clearAll" title="Remove all items">Clear</button>
+        </div>
+        <div class="actions">
+          <button id="fitView" title="Fit the whole room on screen">Fit View</button>
+          <button id="resetView" title="Reset zoom and pan">Reset View</button>
+        </div>
+        <div style="margin-top:8px" class="muted">Units are arbitrary (inches, cm, etc.).</div>
       </div>
-      <div class="row">
-        <div>
-          <label>Rotation (°)</label>
-          <input id="rectRot" type="number" step="1" value="0" />
-        </div>
-        <div>
-          <label>Label</label>
-          <input id="rectLabel" type="text" placeholder="Optional" />
-        </div>
-      </div>
-      <div class="row">
-        <div>
-          <label>Color</label>
-          <input id="rectColor" type="color" value="#22d3ee" />
-        </div>
-        <div>
-          <label>Opacity (0.2–1)</label>
-          <input id="rectAlpha" type="number" min="0.2" max="1" step="0.1" value="0.5" />
-        </div>
-      </div>
-      <button id="addRect">Add Rectangle</button>
-      <div style="margin-top:8px" class="muted">Click to select, drag to move. Use the circle handle to rotate.
-        Keys:<br>
-        <span class="pill">Q/E ±15°</span><span class="pill">G to toggle snap</span>
-      </div>
-    </div>
 
-    <div class="card" id="selCard" style="display:none">
-      <h2>Selected</h2>
-      <div class="row">
-        <div><label>X</label><input id="selX" type="number" step="1" /></div>
-        <div><label>Y</label><input id="selY" type="number" step="1" /></div>
+      <div class="card">
+        <h2>New Rectangle</h2>
+        <div class="row">
+          <div>
+            <label>Width</label>
+            <input id="rectW" type="number" min="1" step="1" value="24" />
+          </div>
+          <div>
+            <label>Height</label>
+            <input id="rectH" type="number" min="1" step="1" value="18" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Rotation (°)</label>
+            <input id="rectRot" type="number" step="1" value="0" />
+          </div>
+          <div>
+            <label>Label</label>
+            <input id="rectLabel" type="text" placeholder="Optional" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Color</label>
+            <input id="rectColor" type="color" value="#22d3ee" />
+          </div>
+          <div>
+            <label>Opacity (0.2–1)</label>
+            <input id="rectAlpha" type="number" min="0.2" max="1" step="0.1" value="0.5" />
+          </div>
+        </div>
+        <button id="addRect">Add Rectangle</button>
+        <div style="margin-top:8px" class="muted">Click to select, drag to move. Use the circle handle to rotate.
+          Keys:<br>
+          <span class="pill">Q/E ±15°</span><span class="pill">G to toggle snap</span>
+        </div>
       </div>
-      <div class="row">
-        <div><label>Width</label><input id="selW" type="number" step="1" /></div>
-        <div><label>Height</label><input id="selH" type="number" step="1" /></div>
-      </div>
-      <div class="row">
-        <div><label>Rotation (°)</label><input id="selR" type="number" step="1" /></div>
-        <div><label>Label</label><input id="selL" type="text" /></div>
-      </div>
-      <div class="row">
-        <div><label>Color</label><input id="selC" type="color" /></div>
-        <div><label>Opacity</label><input id="selA" type="number" min="0.2" max="1" step="0.1" /></div>
-      </div>
-      <div style="margin-top:8px" class="checkline">
-        <input id="selLock" type="checkbox" />
-        <label for="selLock" style="margin:0;color:var(--muted);font-size:12px">Lock (background)</label>
-      </div>
-      <div class="actions">
-        <button id="deleteSel">Delete</button>
-        <button id="dupSel">Duplicate</button>
-      </div>
-    </div>
 
-    <div class="card">
-      <h2>Export / Import</h2>
-      <div class="actions">
-        <button id="exportPNG">Export PNG</button>
-        <button id="exportJSON">Export JSON</button>
+      <div class="card" id="selCard" style="display:none">
+        <h2>Selected</h2>
+        <div class="row">
+          <div>
+            <label>X</label>
+            <input id="selX" type="number" step="1" />
+          </div>
+          <div>
+            <label>Y</label>
+            <input id="selY" type="number" step="1" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Width</label>
+            <input id="selW" type="number" step="1" />
+          </div>
+          <div>
+            <label>Height</label>
+            <input id="selH" type="number" step="1" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Rotation (°)</label>
+            <input id="selR" type="number" step="1" />
+          </div>
+          <div>
+            <label>Label</label>
+            <input id="selL" type="text" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Color</label>
+            <input id="selC" type="color" />
+          </div>
+          <div>
+            <label>Opacity</label>
+            <input id="selA" type="number" min="0.2" max="1" step="0.1" />
+          </div>
+        </div>
+        <div style="margin-top:8px" class="checkline">
+          <input id="selLock" type="checkbox" />
+          <label for="selLock" style="margin:0;color:var(--muted);font-size:12px">Lock (background)</label>
+        </div>
+
+        <div class="actions">
+          <button id="deleteSel">Delete</button>
+          <button id="dupSel">Duplicate</button>
+        </div>
       </div>
-      <div class="actions">
-        <input id="importFile" type="file" accept="application/json" />
-        <button id="importJSON">Import</button>
+
+      <div class="card">
+        <h2>Export / Import</h2>
+        <div class="actions">
+          <button id="exportPNG">Export PNG</button>
+          <button id="exportJSON">Export JSON</button>
+        </div>
+        <div class="actions">
+          <input id="importFile" type="file" accept="application/json" />
+          <button id="importJSON">Import</button>
+        </div>
       </div>
-    </div>
+
+    </div><!-- /.sidebar-inner -->
   </aside>
 
   <main class="canvas-wrap">
@@ -173,64 +303,37 @@
     <span class="pill">Zoom: <strong id="zoomRead">100%</strong></span>
   </div>
 
-<script>
+  <script>
   // ===== Core State =====
   const canvas = document.getElementById('stage');
   const ctx = canvas.getContext('2d');
-
-  let ROOM_W = 240;
-  let ROOM_H = 180;
-  let SCALE = 3;
-  let GRID = 12;
+  let ROOM_W = 240; // units
+  let ROOM_H = 180; // units
+  let SCALE = 3;    // px per unit
+  let GRID = 12;    // units per grid line
   let SNAP_TO_GRID = true;
   let THEME = 'screen';
 
-  // ===== View / Camera =====
+  // ===== View / Camera (zoom + pan) =====
   let ZOOM = 1;
   const ZOOM_MIN = 0.25;
   const ZOOM_MAX = 6;
-  let PAN_X = 0;
-  let PAN_Y = 0;
+  let PAN_X = 0; // px
+  let PAN_Y = 0; // px
   let SPACE_DOWN = false;
-
-  // ===== Input Mode Toggle =====
-  const INPUT_MODE_KEY = 'floorplanner_input_mode';
-  let INPUT_MODE = localStorage.getItem(INPUT_MODE_KEY) || 'auto';
-
-  function detectTouchByCapabilities(){
-    return window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
-  }
-
-  let IS_TOUCH_MODE = false;
-  let HANDLE_RADIUS = 8;
-
-  function applyInputMode(mode){
-    INPUT_MODE = mode;
-    localStorage.setItem(INPUT_MODE_KEY, mode);
-
-    const autoTouch = detectTouchByCapabilities();
-    IS_TOUCH_MODE = (mode === 'touch') ? true : (mode === 'desktop') ? false : autoTouch;
-    HANDLE_RADIUS = IS_TOUCH_MODE ? 18 : 8;
-    SPACE_DOWN = false;
-
-    redraw();
-  }
 
   const rects = []; // {id,x,y,w,h,rot,color,alpha,label,locked}
   let selectedId = null;
 
+  // UI elements
   const ui = {
-    roomW, roomH, scale, grid, applyRoom, clearAll,
-    rectW, rectH, rectRot, rectLabel, rectColor, rectAlpha, addRect,
-    selCard, selX, selY, selW, selH, selR, selL, selC, selA, selLock, deleteSel, dupSel,
-    exportPNG, exportJSON, importFile, importJSON,
-    fitView: document.getElementById('fitView'),
-    resetView: document.getElementById('resetView'),
-    snapState: document.getElementById('snapState'),
-    cursor: document.getElementById('cursor'),
-    selInfo: document.getElementById('selInfo'),
-    zoomRead: document.getElementById('zoomRead'),
-    inputMode: document.getElementById('inputMode')
+    roomW: roomW, roomH: roomH, scale: scale, grid: grid, applyRoom: applyRoom, clearAll: clearAll,
+    rectW: rectW, rectH: rectH, rectRot: rectRot, rectLabel: rectLabel, rectColor: rectColor, rectAlpha: rectAlpha, addRect: addRect,
+    selCard: selCard, selX: selX, selY: selY, selW: selW, selH: selH, selR: selR, selL: selL, selC: selC, selA: selA, selLock: selLock, deleteSel: deleteSel, dupSel: dupSel,
+    exportPNG: exportPNG, exportJSON: exportJSON, importFile: importFile, importJSON: importJSON,
+    fitView: document.getElementById('fitView'), resetView: document.getElementById('resetView'),
+    snapState: document.getElementById('snapState'), cursor: document.getElementById('cursor'), selInfo: document.getElementById('selInfo'),
+    zoomRead: document.getElementById('zoomRead')
   };
 
   function uid(){ return Math.random().toString(36).slice(2,8); }
@@ -242,11 +345,35 @@
     return el.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
   }
 
-  function snap(v, step){ return Math.round(v / step) * step; }
+  // ===== Sidebar Collapse Toggle =====
+  const SB_KEY = 'floorplanner_sidebar_collapsed';
+  let SIDEBAR_COLLAPSED = localStorage.getItem(SB_KEY) === '1';
+
+  function applySidebarState(){
+    document.body.classList.toggle('sidebar-collapsed', SIDEBAR_COLLAPSED);
+    const tab = document.getElementById('sidebarTab');
+    if(tab){
+      tab.innerHTML = SIDEBAR_COLLAPSED ? '&raquo;' : '&laquo;';
+      tab.title = SIDEBAR_COLLAPSED ? 'Expand sidebar' : 'Collapse sidebar';
+    }
+  }
+
+  document.getElementById('sidebarTab')?.addEventListener('click', ()=>{
+    SIDEBAR_COLLAPSED = !SIDEBAR_COLLAPSED;
+    localStorage.setItem(SB_KEY, SIDEBAR_COLLAPSED ? '1' : '0');
+    applySidebarState();
+    // Resize canvas for new available width
+    ui.applyRoom.click();
+  });
+
+  applySidebarState();
+
+  // ===== Helpers =====
   function screenToWorld(px, py){ return [px / (SCALE * ZOOM), py / (SCALE * ZOOM)]; }
+  function snap(v, step){ return Math.round(v / step) * step; }
 
   function updateZoomReadout(){
-    ui.zoomRead.textContent = `${Math.round(ZOOM*100)}%`;
+    if(ui.zoomRead) ui.zoomRead.textContent = `${Math.round(ZOOM*100)}%`;
   }
 
   function clampRectToRoom(r){
@@ -271,6 +398,7 @@
 
   function drawGrid(){
     const [wpx, hpx] = [ROOM_W * SCALE * ZOOM, ROOM_H * SCALE * ZOOM];
+
     const palette = THEME === 'exportWhite' ? {
       bg:'#ffffff', room:'#ffffff', roomStroke:'#c7cdd9', grid:'#e6eaf1', origin:'#93a1bb'
     } : {
@@ -280,8 +408,8 @@
     ctx.fillStyle = palette.bg;
     ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    const {ox, oy} = getRoomOffset();
     ctx.save();
+    const {ox, oy} = getRoomOffset();
     ctx.translate(ox, oy);
 
     ctx.fillStyle = palette.room;
@@ -293,7 +421,6 @@
     ctx.strokeStyle = palette.grid;
     ctx.lineWidth = 1;
     const step = GRID * SCALE * ZOOM;
-
     for(let x=0; x<=wpx; x+=step){
       ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,hpx); ctx.stroke();
     }
@@ -344,15 +471,12 @@
   function redraw(){
     drawGrid();
     const {ox, oy} = getRoomOffset();
-
     ctx.save();
     ctx.beginPath();
     ctx.rect(ox, oy, ROOM_W*SCALE*ZOOM, ROOM_H*SCALE*ZOOM);
     ctx.clip();
-
     for(const r of rects){ if(r.locked) drawRect(r); }
     for(const r of rects){ if(!r.locked) drawRect(r); }
-
     ctx.restore();
     updateZoomReadout();
   }
@@ -362,12 +486,10 @@
     const {ox, oy} = getRoomOffset();
     const cx = ox + r.x * SCALE * ZOOM;
     const cy = oy + r.y * SCALE * ZOOM;
-
     let x = px - cx, y = py - cy;
     const cos = Math.cos(-r.rot * Math.PI/180), sin = Math.sin(-r.rot * Math.PI/180);
     const lx = x * cos - y * sin;
     const ly = x * sin + y * cos;
-
     const hw = (r.w * SCALE * ZOOM)/2, hh = (r.h * SCALE * ZOOM)/2;
     return Math.abs(lx) <= hw && Math.abs(ly) <= hh;
   }
@@ -383,9 +505,8 @@
     const localY = (-h/2 - 16);
     const hx = cx + (0 * cos - localY * sin);
     const hy = cy + (0 * sin + localY * cos);
-
     const d2 = (px - hx)**2 + (py - hy)**2;
-    return d2 <= (HANDLE_RADIUS * HANDLE_RADIUS);
+    return d2 <= (8*8);
   }
 
   function rectAt(px, py){
@@ -396,24 +517,19 @@
     return null;
   }
 
-  // ===== Desktop Interaction =====
+  // ===== Interaction =====
   let drag = null; // {type:'move'|'rotate', id, start:{x,y}, orig:{x,y,rot}}
-  let panDrag = null;
+  let panDrag = null; // {startX,startY,origPanX,origPanY}
 
   canvas.addEventListener('mousemove', (e)=>{
-    if(IS_TOUCH_MODE) return;
-
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
-
-    const {ox, oy} = getRoomOffset();
-    const [wx, wy] = screenToWorld(px - ox, py - oy);
+    const [wx, wy] = screenToWorld(px - getRoomOffset().ox, py - getRoomOffset().oy);
     ui.cursor.textContent = `${wx.toFixed(1)}, ${wy.toFixed(1)}`;
 
     if(drag){
       const r = rects.find(rr => rr.id === drag.id);
       if(!r) return;
-
       if(drag.type === 'move'){
         const dx = (px - drag.start.x) / (SCALE * ZOOM);
         const dy = (py - drag.start.y) / (SCALE * ZOOM);
@@ -425,13 +541,14 @@
         syncSelectedPanel();
         redraw();
       } else if(drag.type === 'rotate'){
+        const {ox, oy} = getRoomOffset();
         const cx = ox + drag.orig.x * SCALE * ZOOM;
         const cy = oy + drag.orig.y * SCALE * ZOOM;
         const ang = Math.atan2(py - cy, px - cx) * 180/Math.PI + 90;
         let rdeg = ang;
         if(SNAP_TO_GRID){ rdeg = snap(rdeg, 5); }
         r.rot = rdeg;
-        ui.selR.value = r.rot.toFixed(0);
+        ui.selR && (ui.selR.value = r.rot.toFixed(0));
         redraw();
       }
       return;
@@ -448,8 +565,6 @@
   });
 
   canvas.addEventListener('mousedown', (e)=>{
-    if(IS_TOUCH_MODE) return;
-
     const rect = canvas.getBoundingClientRect();
     const px = e.clientX - rect.left, py = e.clientY - rect.top;
 
@@ -475,10 +590,9 @@
     }
   });
 
-  canvas.addEventListener('wheel', (e)=>{
-    if(IS_TOUCH_MODE) return;
+  // Wheel zoom toward cursor
+  canvas.addEventListener('wheel', (e) => {
     e.preventDefault();
-
     const rect = canvas.getBoundingClientRect();
     const mx = e.clientX - rect.left;
     const my = e.clientY - rect.top;
@@ -490,7 +604,6 @@
     const factor = (e.deltaY < 0) ? 1.12 : 0.89;
     const newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, ZOOM * factor));
     if(newZoom === ZOOM) return;
-
     ZOOM = newZoom;
 
     const wpx = ROOM_W * SCALE * ZOOM;
@@ -502,10 +615,10 @@
     PAN_Y = my - (baseOy + worldY * SCALE * ZOOM);
 
     redraw();
-  }, {passive:false});
+  }, { passive: false });
 
+  // Pan: Middle mouse OR Space + Left drag
   canvas.addEventListener('mousedown', (e)=>{
-    if(IS_TOUCH_MODE) return;
     if(e.button === 1 || (SPACE_DOWN && e.button === 0)){
       e.preventDefault();
       panDrag = {startX:e.offsetX, startY:e.offsetY, origPanX:PAN_X, origPanY:PAN_Y};
@@ -514,7 +627,6 @@
   });
 
   canvas.addEventListener('mousemove', (e)=>{
-    if(IS_TOUCH_MODE) return;
     if(panDrag){
       PAN_X = panDrag.origPanX + (e.offsetX - panDrag.startX);
       PAN_Y = panDrag.origPanY + (e.offsetY - panDrag.startY);
@@ -524,33 +636,46 @@
 
   window.addEventListener('mouseup', ()=>{
     drag = null;
-    if(panDrag){ panDrag = null; canvas.style.cursor = 'default'; }
+    if(panDrag){
+      panDrag = null;
+      canvas.style.cursor = 'default';
+    }
   });
 
-  canvas.addEventListener('auxclick', (e)=>{ if(e.button===1) e.preventDefault(); });
+  canvas.addEventListener('auxclick', (e)=>{ if(e.button === 1) e.preventDefault(); });
 
   window.addEventListener('keydown',(e)=>{
     if(isTextEditing()) return;
 
-    if(e.code === 'Space' && !IS_TOUCH_MODE){ SPACE_DOWN = true; e.preventDefault(); return; }
+    if(e.code === 'Space'){ SPACE_DOWN = true; e.preventDefault(); return; }
 
     if(e.key.toLowerCase()==='g'){
       SNAP_TO_GRID = !SNAP_TO_GRID;
       ui.snapState.textContent = SNAP_TO_GRID?'ON':'OFF';
     }
 
-    if(!IS_TOUCH_MODE){
-      if(e.key === '+' || e.key === '='){ ZOOM = Math.min(ZOOM_MAX, ZOOM * 1.12); redraw(); return; }
-      if(e.key === '-'){ ZOOM = Math.max(ZOOM_MIN, ZOOM * 0.89); redraw(); return; }
+    if(e.key === '+' || e.key === '=' ){
+      ZOOM = Math.min(ZOOM_MAX, ZOOM * 1.12);
+      redraw();
+      return;
+    }
+    if(e.key === '-' ){
+      ZOOM = Math.max(ZOOM_MIN, ZOOM * 0.89);
+      redraw();
+      return;
     }
 
-    if(e.key === 'Delete' || e.key === 'Backspace'){ deleteSelected(); redraw(); return; }
+    if(e.key === 'Delete' || e.key === 'Backspace'){
+      deleteSelected();
+      redraw();
+      return;
+    }
 
     const r = rects.find(rr=>rr.id===selectedId);
     if(!r || r.locked) return;
 
-    if(e.key.toLowerCase()==='q'){ r.rot -= 15; syncSelectedPanel(); redraw(); }
-    if(e.key.toLowerCase()==='e'){ r.rot += 15; syncSelectedPanel(); redraw(); }
+    if(e.key.toLowerCase()==='q'){ r.rot = (r.rot - 15); syncSelectedPanel(); redraw(); }
+    if(e.key.toLowerCase()==='e'){ r.rot = (r.rot + 15); syncSelectedPanel(); redraw(); }
     if(e.key==='ArrowLeft'){ r.x -= SNAP_TO_GRID? GRID/2 : 1; clampRectToRoom(r); syncSelectedPanel(); redraw(); }
     if(e.key==='ArrowRight'){ r.x += SNAP_TO_GRID? GRID/2 : 1; clampRectToRoom(r); syncSelectedPanel(); redraw(); }
     if(e.key==='ArrowUp'){ r.y -= SNAP_TO_GRID? GRID/2 : 1; clampRectToRoom(r); syncSelectedPanel(); redraw(); }
@@ -559,130 +684,9 @@
 
   window.addEventListener('keyup',(e)=>{
     if(isTextEditing()) return;
-    if(e.code === 'Space' && !IS_TOUCH_MODE){ SPACE_DOWN = false; e.preventDefault(); }
+    if(e.code === 'Space'){ SPACE_DOWN = false; e.preventDefault(); }
   });
 
-  // ===== Touch Interaction (Pointer Events) =====
-  const pointers = new Map();
-  let touchPanStart = null;
-  let pinchStart = null;
-
-  function getCanvasXY(e){
-    const rect = canvas.getBoundingClientRect();
-    return {x: e.clientX - rect.left, y: e.clientY - rect.top};
-  }
-  function pDist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-  function pMid(a,b){ return {x:(a.x+b.x)/2, y:(a.y+b.y)/2}; }
-
-  canvas.addEventListener('pointerdown', (e)=>{
-    if(!IS_TOUCH_MODE) return;
-    if(e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
-
-    canvas.setPointerCapture(e.pointerId);
-    const p = getCanvasXY(e);
-    pointers.set(e.pointerId, p);
-
-    if(pointers.size === 2){
-      const pts = [...pointers.values()];
-      const m = pMid(pts[0], pts[1]);
-
-      const {ox, oy} = getRoomOffset();
-      const worldX = (m.x - ox) / (SCALE * ZOOM);
-      const worldY = (m.y - oy) / (SCALE * ZOOM);
-
-      pinchStart = {dist: pDist(pts[0], pts[1]), zoom: ZOOM, worldX, worldY};
-      touchPanStart = null;
-      drag = null;
-      return;
-    }
-
-    const r = rectAt(p.x, p.y);
-    if(r){
-      select(r.id);
-      if(!r.locked){
-        bringToFront(r.id);
-        drag = {type:'move', id:r.id, start:{x:p.x,y:p.y}, orig:{x:r.x,y:r.y,rot:r.rot}};
-      } else {
-        drag = null;
-      }
-      touchPanStart = null;
-    } else {
-      select(null);
-      drag = null;
-      touchPanStart = {x:p.x, y:p.y, panX:PAN_X, panY:PAN_Y};
-    }
-  });
-
-  canvas.addEventListener('pointermove', (e)=>{
-    if(!IS_TOUCH_MODE) return;
-    if(!pointers.has(e.pointerId)) return;
-
-    const p = getCanvasXY(e);
-    pointers.set(e.pointerId, p);
-
-    const {ox, oy} = getRoomOffset();
-    const [wx, wy] = screenToWorld(p.x - ox, p.y - oy);
-    ui.cursor.textContent = `${wx.toFixed(1)}, ${wy.toFixed(1)}`;
-
-    if(pointers.size === 2 && pinchStart){
-      const pts = [...pointers.values()];
-      const m = pMid(pts[0], pts[1]);
-      const d = pDist(pts[0], pts[1]);
-
-      let newZoom = pinchStart.zoom * (d / pinchStart.dist);
-      newZoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, newZoom));
-      ZOOM = newZoom;
-
-      const wpx = ROOM_W * SCALE * ZOOM;
-      const hpx = ROOM_H * SCALE * ZOOM;
-      const baseOx = (canvas.width - wpx)/2;
-      const baseOy = (canvas.height - hpx)/2;
-
-      PAN_X = m.x - (baseOx + pinchStart.worldX * SCALE * ZOOM);
-      PAN_Y = m.y - (baseOy + pinchStart.worldY * SCALE * ZOOM);
-
-      redraw();
-      return;
-    }
-
-    if(touchPanStart && !drag){
-      PAN_X = touchPanStart.panX + (p.x - touchPanStart.x);
-      PAN_Y = touchPanStart.panY + (p.y - touchPanStart.y);
-      redraw();
-      return;
-    }
-
-    if(drag && drag.type === 'move'){
-      const r = rects.find(rr=>rr.id === drag.id);
-      if(!r || r.locked) return;
-
-      const dx = (p.x - drag.start.x) / (SCALE * ZOOM);
-      const dy = (p.y - drag.start.y) / (SCALE * ZOOM);
-      let nx = drag.orig.x + dx;
-      let ny = drag.orig.y + dy;
-
-      if(SNAP_TO_GRID){ nx = snap(nx, GRID/2); ny = snap(ny, GRID/2); }
-
-      r.x = nx; r.y = ny;
-      clampRectToRoom(r);
-      syncSelectedPanel();
-      redraw();
-    }
-  });
-
-  function endTouchPointer(e){
-    if(!IS_TOUCH_MODE) return;
-    pointers.delete(e.pointerId);
-    if(pointers.size < 2) pinchStart = null;
-    if(pointers.size === 0){
-      drag = null;
-      touchPanStart = null;
-    }
-  }
-  canvas.addEventListener('pointerup', endTouchPointer);
-  canvas.addEventListener('pointercancel', endTouchPointer);
-
-  // ===== Selection + UI sync =====
   function bringToFront(id){
     const idx = rects.findIndex(r=>r.id===id);
     if(idx>=0){ const [r]=rects.splice(idx,1); rects.push(r); redraw(); }
@@ -691,62 +695,55 @@
     const idx = rects.findIndex(r=>r.id===id);
     if(idx>=0){ const [r]=rects.splice(idx,1); rects.unshift(r); redraw(); }
   }
-  function select(id){ selectedId = id; syncSelectedPanel(); redraw(); }
 
-  function getSel(){ return rects.find(rr=>rr.id===selectedId) || null; }
+  function select(id){
+    selectedId = id; syncSelectedPanel(); redraw();
+  }
 
   function syncSelectedPanel(){
-    const r = getSel();
-    if(!r){
-      ui.selCard.style.display='none';
-      ui.selInfo.textContent='none';
-      return;
-    }
+    const r = rects.find(rr=>rr.id===selectedId);
+    if(!r){ ui.selCard.style.display='none'; ui.selInfo.textContent='none'; return; }
     ui.selCard.style.display='block';
-    ui.selX.value = r.x.toFixed(1);
-    ui.selY.value = r.y.toFixed(1);
-    ui.selW.value = r.w.toFixed(1);
-    ui.selH.value = r.h.toFixed(1);
-    ui.selR.value = r.rot.toFixed(0);
-    ui.selL.value = r.label || '';
-    ui.selC.value = r.color;
-    ui.selA.value = r.alpha.toFixed(1);
+    ui.selX.value = r.x.toFixed(1); ui.selY.value = r.y.toFixed(1);
+    ui.selW.value = r.w.toFixed(1); ui.selH.value = r.h.toFixed(1);
+    ui.selR.value = r.rot.toFixed(0); ui.selL.value = r.label||'';
+    ui.selC.value = r.color; ui.selA.value = r.alpha.toFixed(1);
     ui.selLock.checked = !!r.locked;
     ui.selInfo.textContent = `${r.label||'rect'} (${r.w}×${r.h} @ ${r.rot}°)`;
   }
 
-  ui.selX.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.x = +ui.selX.value; clampRectToRoom(r); redraw(); });
-  ui.selY.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.y = +ui.selY.value; clampRectToRoom(r); redraw(); });
-  ui.selW.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.w = Math.max(1,+ui.selW.value); clampRectToRoom(r); syncSelectedPanel(); redraw(); });
-  ui.selH.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.h = Math.max(1,+ui.selH.value); clampRectToRoom(r); syncSelectedPanel(); redraw(); });
-  ui.selR.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.rot = +ui.selR.value; redraw(); });
-  ui.selL.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.label = ui.selL.value; redraw(); });
-  ui.selC.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.color = ui.selC.value; redraw(); });
-  ui.selA.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.alpha = Math.min(1, Math.max(0.2, +ui.selA.value)); redraw(); });
-
-  ui.selLock.addEventListener('change', ()=>{
+  ui.selX?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.x = +ui.selX.value; clampRectToRoom(r); redraw(); });
+  ui.selY?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.y = +ui.selY.value; clampRectToRoom(r); redraw(); });
+  ui.selW?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.w = Math.max(1,+ui.selW.value); clampRectToRoom(r); syncSelectedPanel(); redraw(); });
+  ui.selH?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.h = Math.max(1,+ui.selH.value); clampRectToRoom(r); syncSelectedPanel(); redraw(); });
+  ui.selR?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.rot = +ui.selR.value; redraw(); });
+  ui.selL?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.label = ui.selL.value; redraw(); });
+  ui.selC?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.color = ui.selC.value; redraw(); });
+  ui.selA?.addEventListener('input', ()=>{ const r=getSel(); if(!r) return; r.alpha = Math.min(1, Math.max(0.2, +ui.selA.value)); redraw(); });
+  ui.selLock?.addEventListener('change', ()=>{
     const r=getSel(); if(!r) return;
-    r.locked = ui.selLock.checked;
+    r.locked = !!ui.selLock.checked;
     if(r.locked) sendToBack(r.id);
-    syncSelectedPanel();
     redraw();
+    syncSelectedPanel();
   });
+
+  function getSel(){ return rects.find(rr=>rr.id===selectedId) || null; }
 
   function deleteSelected(){
     const idx = rects.findIndex(r=>r.id===selectedId);
     if(idx>=0){ rects.splice(idx,1); select(null); }
   }
-  ui.deleteSel.addEventListener('click', deleteSelected);
-
-  ui.dupSel.addEventListener('click', ()=>{
+  ui.deleteSel?.addEventListener('click', deleteSelected);
+  ui.dupSel?.addEventListener('click', ()=>{
     const r=getSel(); if(!r) return;
-    const copy = {...r, id:uid(), x:r.x + r.w/4, y:r.y + r.h/4};
-    rects.push(copy);
-    select(copy.id);
+    const copy={...r,id:uid(),x:r.x+ (r.w/4), y:r.y+(r.h/4)};
+    rects.push(copy); select(copy.id);
   });
 
-  // ===== View helpers =====
-  function resetView(){ ZOOM=1; PAN_X=0; PAN_Y=0; redraw(); }
+  function resetView(){
+    ZOOM = 1; PAN_X = 0; PAN_Y = 0; redraw();
+  }
   function fitToScreen(){
     const pad = 40;
     const roomPxW = ROOM_W * SCALE;
@@ -754,20 +751,17 @@
     const zx = (canvas.width  - pad*2) / roomPxW;
     const zy = (canvas.height - pad*2) / roomPxH;
     ZOOM = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.min(zx, zy)));
-    PAN_X = 0; PAN_Y = 0;
-    redraw();
+    PAN_X = 0; PAN_Y = 0; redraw();
   }
-  ui.fitView.addEventListener('click', fitToScreen);
-  ui.resetView.addEventListener('click', resetView);
+  ui.fitView?.addEventListener('click', fitToScreen);
+  ui.resetView?.addEventListener('click', resetView);
 
-  // ===== Buttons =====
   ui.applyRoom.addEventListener('click',()=>{
     ROOM_W = Math.max(1, +ui.roomW.value);
     ROOM_H = Math.max(1, +ui.roomH.value);
     SCALE  = Math.max(1, +ui.scale.value);
     GRID   = Math.max(1, +ui.grid.value);
-
-    for(const r of rects) clampRectToRoom(r);
+    for(const r of rects){ clampRectToRoom(r); }
 
     const maxW = window.innerWidth - 360, maxH = window.innerHeight - 120;
     const wpx = Math.min(ROOM_W*SCALE, Math.max(800, maxW));
@@ -777,11 +771,10 @@
     redraw();
   });
 
-  ui.clearAll.addEventListener('click', ()=>{ rects.length=0; select(null); redraw(); });
+  ui.clearAll.addEventListener('click',()=>{ rects.length=0; select(null); redraw(); });
 
-  ui.addRect.addEventListener('click', ()=>{
-    const w = Math.max(1, +ui.rectW.value);
-    const h = Math.max(1, +ui.rectH.value);
+  ui.addRect.addEventListener('click',()=>{
+    const w = Math.max(1,+ui.rectW.value), h = Math.max(1,+ui.rectH.value);
     const rot = +ui.rectRot.value || 0;
     const color = ui.rectColor.value;
     const alpha = Math.min(1, Math.max(0.2, +ui.rectAlpha.value));
@@ -789,15 +782,13 @@
     const r = {id:uid(), x:w/2+1, y:h/2+1, w, h, rot, color, alpha, label, locked:false};
     if(SNAP_TO_GRID){ r.x = snap(r.x, GRID/2); r.y = snap(r.y, GRID/2); }
     clampRectToRoom(r);
-    rects.push(r);
-    select(r.id);
+    rects.push(r); select(r.id);
   });
 
-  ui.exportPNG.addEventListener('click', ()=>{
+  ui.exportPNG.addEventListener('click',()=>{
     const Proj_Name = document.getElementById('ProjectN').value || 'floorplan';
-
     const off = document.createElement('canvas');
-    off.width = Math.round(ROOM_W * SCALE);
+    off.width  = Math.round(ROOM_W * SCALE);
     off.height = Math.round(ROOM_H * SCALE);
     const octx = off.getContext('2d');
 
@@ -816,7 +807,7 @@
 
     for(const r of rects){
       const cx = r.x * SCALE, cy = r.y * SCALE;
-      const ww = r.w * SCALE, hh = r.h * SCALE;
+      const w  = r.w * SCALE, h = r.h * SCALE;
       octx.save();
       octx.translate(cx, cy);
       octx.rotate(r.rot * Math.PI/180);
@@ -824,70 +815,51 @@
       octx.strokeStyle = '#2a3b59';
       octx.lineWidth = 1.25;
       octx.beginPath();
-      octx.rect(-ww/2, -hh/2, ww, hh);
+      octx.rect(-w/2, -h/2, w, h);
       octx.fill(); octx.stroke();
       if(r.label){
         octx.fillStyle = '#0b1220';
         octx.font = '12px system-ui, sans-serif';
-        octx.textAlign='center'; octx.textBaseline='middle';
+        octx.textAlign = 'center'; octx.textBaseline = 'middle';
         octx.fillText(r.label, 0, 0);
       }
       octx.restore();
     }
 
     const url = off.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = Proj_Name + '.png';
-    a.click();
+    const a = document.createElement('a'); a.href=url; a.download= Proj_Name + '.png'; a.click();
   });
 
-  ui.exportJSON.addEventListener('click', ()=>{
+  ui.exportJSON.addEventListener('click',()=>{
     const Proj_Name = document.getElementById('ProjectN').value || 'floorplan';
     const data = { room:{w:ROOM_W,h:ROOM_H,scale:SCALE,grid:GRID}, snap:SNAP_TO_GRID, rects };
     const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href=url; a.download=Proj_Name + '.json';
-    a.click();
+    const a = document.createElement('a'); a.href=url; a.download= Proj_Name + '.json'; a.click();
     setTimeout(()=>URL.revokeObjectURL(url), 1000);
   });
 
-  ui.importJSON.addEventListener('click', ()=>{
+  ui.importJSON.addEventListener('click',()=>{
     const f = ui.importFile.files?.[0];
     if(!f) return alert('Choose a JSON file first');
     const fr = new FileReader();
     fr.onload = ()=>{
       try{
         const d = JSON.parse(fr.result);
-        ROOM_W = d.room.w; ROOM_H = d.room.h; SCALE = d.room.scale; GRID = d.room.grid; SNAP_TO_GRID = !!d.snap;
-        rects.length = 0;
+        ROOM_W = d.room.w; ROOM_H = d.room.h; SCALE=d.room.scale; GRID=d.room.grid; SNAP_TO_GRID = !!d.snap;
+        rects.length=0;
         for(const r of d.rects){ rects.push({locked:false, ...r}); }
         ui.roomW.value=ROOM_W; ui.roomH.value=ROOM_H; ui.scale.value=SCALE; ui.grid.value=GRID;
         ui.snapState.textContent = SNAP_TO_GRID?'ON':'OFF';
-        select(null);
-        ui.applyRoom.click();
-      }catch(err){
-        alert('Invalid JSON');
-      }
+        select(null); ui.applyRoom.click();
+      }catch(err){ alert('Invalid JSON'); }
     };
     fr.readAsText(f);
   });
 
-  // ===== Init =====
-  if(ui.inputMode){
-    ui.inputMode.value = INPUT_MODE;
-    ui.inputMode.addEventListener('change', () => applyInputMode(ui.inputMode.value));
-  }
-  applyInputMode(INPUT_MODE);
-
-  const mq = window.matchMedia && window.matchMedia('(pointer: coarse)');
-  if(mq && mq.addEventListener){
-    mq.addEventListener('change', ()=>{ if(INPUT_MODE === 'auto') applyInputMode('auto'); });
-  }
-
+  // Initial draw
   ui.applyRoom.click();
   redraw();
-</script>
+  </script>
 </body>
 </html>
